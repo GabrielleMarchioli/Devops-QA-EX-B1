@@ -1,0 +1,34 @@
+// Pipeline do iot-gateway (Python). Script Path = servicos/iot-gateway/Jenkinsfile
+pipeline {
+    agent any
+    options { timestamps(); disableConcurrentBuilds() }
+
+    stages {
+        stage('Testes') {
+            steps {
+                dir('servicos/iot-gateway') {
+                    sh '''
+                      python3 -m venv .venv
+                      . .venv/bin/activate
+                      pip install -q -r requirements.txt
+                      python -m pytest -q --junitxml=relatorio-testes.xml
+                    '''
+                }
+            }
+            post { always { junit 'servicos/iot-gateway/relatorio-testes.xml' } }
+        }
+
+        stage('Imagem Docker') {
+            steps {
+                sh 'docker build -t educacao/iot-gateway:${BUILD_NUMBER} -t educacao/iot-gateway:latest servicos/iot-gateway'
+            }
+        }
+
+        stage('Deploy') {
+            when { branch 'main' }
+            steps {
+                sh 'docker compose up -d --no-deps --build iot-gateway'
+            }
+        }
+    }
+}

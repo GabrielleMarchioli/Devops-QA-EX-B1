@@ -1,0 +1,116 @@
+# Ambiente completo do B1 (Core, servicos Python, brokers e observabilidade).
+# Subir tudo:      ./mvnw -DskipTests package && docker compose up -d --build
+# Deploy isolado:  docker compose up -d --no-deps --build <servico>
+services:
+
+  postgres:
+    image: postgres:16
+    container_name: educacao-postgres
+    environment:
+      POSTGRES_DB: educacao
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: postgres
+    ports:
+      - "5432:5432"
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+
+  pgadmin:
+    image: dpage/pgadmin4
+    container_name: educacao-pgadmin
+    environment:
+      PGADMIN_DEFAULT_EMAIL: admin@admin.com
+      PGADMIN_DEFAULT_PASSWORD: admin
+    ports:
+      - "5050:80"
+    depends_on:
+      - postgres
+
+  # Core Java/Spring Boot (monolito modular)
+  app:
+    build: .
+    container_name: educacao-app
+    environment:
+      SPRING_PROFILES_ACTIVE: postgres,rabbit
+      SPRING_DATASOURCE_URL: jdbc:postgresql://postgres:5432/educacao
+      SPRING_DATASOURCE_USERNAME: postgres
+      SPRING_DATASOURCE_PASSWORD: postgres
+      SPRING_DATASOURCE_DRIVER_CLASS_NAME: org.postgresql.Driver
+      IA_SERVICE_URL: http://ia-service:8000
+      RABBITMQ_HOST: rabbitmq
+    ports:
+      - "8080:8080"
+    depends_on:
+      - postgres
+      - rabbitmq
+
+  # Desafio 3: servico Python de IA (recomendacao + RAG)
+  ia-service:
+    build: ./servicos/ia-service
+    container_name: educacao-ia-service
+    ports:
+      - "8000:8000"
+
+  # Desafio 4: broker interno de eventos
+  rabbitmq:
+    image: rabbitmq:3.13-management
+    container_name: educacao-rabbitmq
+    ports:
+      - "5672:5672"
+      - "15672:15672"
+
+  notificacao-worker:
+    build: ./servicos/notificacao-worker
+    container_name: educacao-notificacao-worker
+    environment:
+      RABBITMQ_HOST: rabbitmq
+    depends_on:
+      - rabbitmq
+
+  # Desafio 5: broker MQTT dos laboratorios + gateway
+  mosquitto:
+    image: eclipse-mosquitto:2
+    container_name: educacao-mosquitto
+    ports:
+      - "1883:1883"
+    volumes:
+      - ./servicos/iot-gateway/mosquitto.conf:/mosquitto/config/mosquitto.conf:ro
+      - mosquitto_data:/mosquitto/data
+
+  iot-gateway:
+    build: ./servicos/iot-gateway
+    container_name: educacao-iot-gateway
+    environment:
+      MQTT_HOST: mosquitto
+      CORE_URL: http://app:8080
+    ports:
+      - "9102:9102"
+    depends_on:
+      - mosquitto
+      - app
+
+  # Desafio 6: observabilidade
+  prometheus:
+    image: prom/prometheus:v3.5.0
+    container_name: educacao-prometheus
+    volumes:
+      - ./observabilidade/prometheus:/etc/prometheus:ro
+    ports:
+      - "9090:9090"
+
+  grafana:
+    image: grafana/grafana:11.6.0
+    container_name: educacao-grafana
+    environment:
+      GF_SECURITY_ADMIN_PASSWORD: admin
+    volumes:
+      - ./observabilidade/grafana/provisioning:/etc/grafana/provisioning:ro
+      - ./observabilidade/grafana/dashboards:/var/lib/grafana/dashboards:ro
+    ports:
+      - "3000:3000"
+    depends_on:
+      - prometheus
+
+volumes:
+  postgres_data:
+  mosquitto_data:

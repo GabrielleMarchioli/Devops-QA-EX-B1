@@ -1,0 +1,28 @@
+// Pipeline do notificacao-worker (Python). Script Path = servicos/notificacao-worker/Jenkinsfile
+pipeline {
+    agent any
+    options { timestamps(); disableConcurrentBuilds() }
+
+    stages {
+        stage('Testes') {
+            steps {
+                dir('servicos/notificacao-worker') {
+                    sh '''
+                      python3 -m venv .venv
+                      . .venv/bin/activate
+                      pip install -q -r requirements.txt
+                      python -m pytest -q --junitxml=relatorio-testes.xml
+                    '''
+                }
+            }
+            post { always { junit 'servicos/notificacao-worker/relatorio-testes.xml' } }
+        }
+
+        stage('Imagem + deploy') {
+            when { branch 'main' }
+            steps {
+                sh 'docker compose up -d --no-deps --build notificacao-worker'
+            }
+        }
+    }
+}

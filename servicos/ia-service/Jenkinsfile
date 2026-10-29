@@ -1,0 +1,40 @@
+// Pipeline do ia-service (Python). Script Path = servicos/ia-service/Jenkinsfile
+// Ciclo de deploy independente do Core (ADR-003 / ADR-006).
+pipeline {
+    agent any
+    options { timestamps(); disableConcurrentBuilds() }
+
+    stages {
+        stage('Testes') {
+            steps {
+                dir('servicos/ia-service') {
+                    sh '''
+                      python3 -m venv .venv
+                      . .venv/bin/activate
+                      pip install -q -r requirements.txt
+                      python -m pytest -q --junitxml=relatorio-testes.xml
+                    '''
+                }
+            }
+            post { always { junit 'servicos/ia-service/relatorio-testes.xml' } }
+        }
+
+        stage('Imagem Docker') {
+            steps {
+                sh 'docker build -t educacao/ia-service:${BUILD_NUMBER} -t educacao/ia-service:latest servicos/ia-service'
+            }
+        }
+
+        stage('Deploy + smoke') {
+            when { branch 'main' }
+            steps {
+                sh '''
+                  docker compose up -d --no-deps --build ia-service
+                  for i in $(seq 1 20); do curl -fs http://localhost:8000/health && break; sleep 2; done
+                  curl -fs http://localhost:8000/recomendacoes/1 | grep -q itens
+                  curl -fs http://localhost:8000/metrics/ | grep -q ia_requisicoes_total
+                '''
+            }
+        }
+    }
+}
