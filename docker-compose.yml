@@ -62,6 +62,7 @@ services:
   notificacao-worker:
     build: ./servicos/notificacao-worker
     container_name: educacao-notificacao-worker
+    restart: unless-stopped
     environment:
       RABBITMQ_HOST: rabbitmq
     depends_on:

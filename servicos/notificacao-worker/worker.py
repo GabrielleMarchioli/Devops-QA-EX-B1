@@ -61,8 +61,9 @@ def main():
             canal.basic_consume(queue=FILA, on_message_callback=ao_receber)
             log.info("aguardando eventos em %s", FILA)
             canal.start_consuming()
-        except pika.exceptions.AMQPConnectionError:
-            log.warning("RabbitMQ indisponível, nova tentativa em 5s")
+        except (pika.exceptions.AMQPError, OSError) as erro:
+            # AMQPError: conexao/canal perdidos; OSError: rede/DNS (ex.: container do broker parado)
+            log.warning("RabbitMQ indisponível (%s), nova tentativa em 5s", erro)
             time.sleep(5)
 
 
