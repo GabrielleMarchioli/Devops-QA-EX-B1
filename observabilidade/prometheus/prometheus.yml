@@ -9,7 +9,7 @@ scrape_configs:
   - job_name: core-gamificacao
     metrics_path: /actuator/prometheus
     static_configs:
-      - targets: ["app:8080"]
+      - targets: ["host.docker.internal:8080"]
 
   - job_name: ia-service
     metrics_path: /metrics/
@@ -18,4 +18,4 @@ scrape_configs:
 
   - job_name: iot-gateway
     static_configs:
-      - targets: ["iot-gateway:9102"]
+      - targets: ["host.docker.internal:9102"]
