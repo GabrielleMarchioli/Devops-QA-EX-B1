@@ -20,7 +20,6 @@ public final class Ranking {
     }
 
     public static List<PosicaoRanking> classificar(List<Aluno> alunos) {
-        org.springframework.util.Assert.notNull(alunos, "alunos"); // VIOLACAO PROPOSITAL (D6): sera revertida
         List<Aluno> ordenados = new ArrayList<>(alunos);
         ordenados.sort(CRITERIO);
 
